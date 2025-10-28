@@ -1,0 +1,7 @@
+# Tệp hệ điều hành (OS)
+.DS_Store
+Thumbs.db
+
+# Cấu hình IDE/Editor
+.vscode/
+.idea/
