@@ -40,30 +40,66 @@ app.post('/api/users/add', async (req, res) => {
     }});
 
 app.get('/api/users', async (req, res) => {
-    try {
-        const users = await User.find({}).select('-password');
-        res.json(users);
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Server error' });
+  try {
+    const keyword = req.query.search;
+    let filter = {};
+    if (keyword) {
+      filter = {
+        $or: [
+          { username: { $regex: keyword, $options: 'i' } },
+          { email: { $regex: keyword, $options: 'i' } }
+        ]
+      };
     }
+    const users = await User.find(filter).select('-password'); 
+    res.json(users);
+  } catch (error) {
+    console.error('Lỗi khi lấy users:', error); // Thêm log lỗi
+    res.status(500).json({ message: 'Lỗi máy chủ' });
+  }
 });
 
 app.put('/api/users/:id', async (req, res) => {
-    const { username, email, password, image } = req.body;
-    try {
-        const user = await User.findById(req.params.id);
-        if (user) {
-            user.username = username || user.username;
-            user.email = email || user.email;
+  try {
+    // 1. Lấy TẤT CẢ các trường có thể có từ request
+    const { username, password, image } = req.body;
+    
+    const user = await User.findById(req.params.id);
 
-            const uppdatedUser = await user.save();
-            res.json(uppdatedUser);
-        } else {
-            res.status(404).json({ success: false, message: 'Không tìm thấy user' });
-        }
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Server error' });
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy user' });
     }
+
+    // 2. Cập nhật các trường
+    user.username = username || user.username;
+    
+    // 3. Cập nhật mật khẩu (NẾU có mật khẩu mới được gửi)
+    if (password) {
+      user.password = password; // Hook pre-save trong Model sẽ tự động băm mật khẩu
+    }
+
+    // 4. Cập nhật ảnh (Quan trọng)
+    // Phải kiểm tra 'image' CÓ TỒN TẠI trong request hay không
+    // (Vì 'image: null' là một giá trị hợp lệ, nghĩa là 'xóa ảnh')
+    if ('image' in req.body) {
+      user.image = image; 
+    }
+
+    // 5. Lưu lại user
+    const updatedUser = await user.save();
+    
+    // Trả về user đã cập nhật (không kèm mật khẩu)
+    res.json({
+      _id: updatedUser._id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      image: updatedUser.image,
+    });
+
+  } catch (error) {
+    console.error('LỖI KHI CẬP NHẬT:', error);
+    res.status(500).json({ message: 'Lỗi máy chủ khi cập nhật user' });
+  }
 });
 
 // 6. API XÓA USER (Phiên bản tốt nhất)
